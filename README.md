@@ -13,6 +13,7 @@ Steg 2–4 (jobbmatchning, skräddarsydd ansökan, ansökningsspårning) är int
 | Frontend | React 19 + Vite |
 | API | Vercel Functions (`/api`), samma handlers körs lokalt via Vite-middleware |
 | AI | Anthropic Claude (`claude-opus-5`) med structured outputs |
+| Filinläsning | pdf.js och mammoth – körs i webbläsaren, lazy-laddade |
 | Data/auth | Supabase – förberett men inte inkopplat ännu |
 | Hosting | Vercel |
 
@@ -61,9 +62,28 @@ src/
     ScoreRing.jsx      Poängringen
   lib/
     api.js             fetch-wrapper mot /api
+    extractText.js     PDF/Word/text → ren text, helt i webbläsaren
     supabase.js        Supabase-klient (oanvänd tills vidare)
     sampleCv.js        Exempel-CV för att testa flödet
 ```
+
+## Filuppladdning
+
+`.pdf`, `.docx`, `.txt` och `.md` läses **i webbläsaren** – filen laddas aldrig
+upp till servern. Texten hamnar i textrutan där du kan rätta den innan analysen.
+Det speglar också hur ett ATS läser din fil: ser texten trasig ut där, gör den
+det i systemet också.
+
+- PDF läses med pdf.js. Textfragment grupperas till rader efter position; en rad
+  per rad i originalet, max 20 sidor.
+- Word läses med mammoth (`extractRawText`). Formatering, tabeller och textrutor
+  förenklas till löpande text.
+- Inskannade PDF:er saknar textlager och ger felmeddelande – ingen OCR körs.
+- Gamla `.doc`, `.rtf` och `.pages` avvisas med besked om att spara om filen.
+- Max 10 MB.
+
+Båda parsers laddas först vid uppladdning, så huvudbundeln påverkas knappt
+(~6 kB); pdf.js och mammoth hamnar i egna chunkar.
 
 ## Så fungerar analysen
 
@@ -97,7 +117,6 @@ om analyserna känns ytliga – det kostar mer och tar längre tid.
 
 ### Gränser i steg 1
 
-- CV:t tas emot som text: inklistrat eller uppladdat som `.txt`/`.md`. PDF och Word stöds inte ännu.
 - Text mellan 200 och 60 000 tecken. Längre texter avvisas i stället för att klippas.
 - Inget sparas: ingen inloggning, ingen databas, inget CV lagras. Texten skickas
   till Anthropic för analysen och kastas därefter.

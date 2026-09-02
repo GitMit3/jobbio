@@ -237,6 +237,17 @@ textarea:disabled {
   color: var(--bad);
 }
 
+.source-note {
+  margin-top: 0.15rem;
+  padding: 0.45rem 0.6rem;
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .uploader-actions {
   display: flex;
   flex-wrap: wrap;

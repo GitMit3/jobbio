@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react'
+import { ACCEPTED_FILE_TYPES, ACCEPTED_LABEL, ExtractError, extractTextFromFile } from '../lib/extractText.js'
 
-const ACCEPTED = '.txt,.md,.markdown,text/plain'
 const MIN_CHARS = 200
 
 export default function CvUploader({
@@ -15,25 +15,37 @@ export default function CvUploader({
   const cvId = useId()
   const roleId = useId()
   const fileInput = useRef(null)
+  const [isExtracting, setIsExtracting] = useState(false)
   const [fileError, setFileError] = useState('')
+  const [source, setSource] = useState(null) // { name, warnings }
 
+  const busy = isLoading || isExtracting
   const tooShort = cvText.trim().length > 0 && cvText.trim().length < MIN_CHARS
+
+  function reset() {
+    setFileError('')
+    setSource(null)
+  }
 
   async function handleFile(event) {
     const file = event.target.files?.[0]
+    event.target.value = '' // så att samma fil kan väljas igen
     if (!file) return
-    setFileError('')
+
+    reset()
+    setIsExtracting(true)
     try {
-      const text = await file.text()
-      if (!text.trim()) {
-        setFileError('Filen verkar vara tom.')
-        return
-      }
+      const { text, warnings } = await extractTextFromFile(file)
       onCvTextChange(text)
-    } catch {
-      setFileError('Kunde inte läsa filen. Prova att klistra in texten istället.')
+      setSource({ name: file.name, warnings })
+    } catch (error) {
+      setFileError(
+        error instanceof ExtractError
+          ? error.message
+          : 'Filen kunde inte läsas. Klistra in texten manuellt istället.',
+      )
     } finally {
-      event.target.value = ''
+      setIsExtracting(false)
     }
   }
 
@@ -56,7 +68,7 @@ export default function CvUploader({
           value={targetRole}
           maxLength={200}
           onChange={(event) => onTargetRoleChange(event.target.value)}
-          disabled={isLoading}
+          disabled={busy}
         />
         <p className="hint">Anges den, matchas nyckelorden mot den rollen. Annars gissar analysen utifrån CV:t.</p>
       </div>
@@ -69,45 +81,69 @@ export default function CvUploader({
         <textarea
           id={cvId}
           value={cvText}
-          onChange={(event) => onCvTextChange(event.target.value)}
-          placeholder="Klistra in hela ditt CV som text här…"
+          onChange={(event) => {
+            onCvTextChange(event.target.value)
+            if (source) setSource(null)
+          }}
+          placeholder={`Klistra in ditt CV som text här – eller ladda upp ${ACCEPTED_LABEL}.`}
           rows={18}
           spellCheck="false"
-          disabled={isLoading}
+          disabled={busy}
         />
+
+        {isExtracting && <p className="hint">Läser filen…</p>}
         {tooShort && <p className="hint warn">Minst {MIN_CHARS} tecken behövs för en meningsfull analys.</p>}
         {fileError && <p className="hint warn">{fileError}</p>}
+
+        {source && (
+          <div className="source-note">
+            <p className="hint">
+              Text hämtad från <strong>{source.name}</strong>. Läs igenom och rätta innan du analyserar – formatering
+              går alltid förlorad vid textutvinning.
+            </p>
+            {source.warnings.map((warning, i) => (
+              <p className="hint warn" key={i}>
+                {warning}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="uploader-actions">
-        <button type="submit" className="primary" disabled={isLoading || cvText.trim().length < MIN_CHARS}>
+        <button type="submit" className="primary" disabled={busy || cvText.trim().length < MIN_CHARS}>
           {isLoading ? 'Analyserar…' : 'Analysera CV'}
         </button>
 
         <input
           ref={fileInput}
           type="file"
-          accept={ACCEPTED}
+          accept={ACCEPTED_FILE_TYPES}
           onChange={handleFile}
           hidden
           aria-hidden="true"
           tabIndex={-1}
         />
-        <button type="button" onClick={() => fileInput.current?.click()} disabled={isLoading}>
-          Ladda upp .txt
+        <button type="button" onClick={() => fileInput.current?.click()} disabled={busy}>
+          {isExtracting ? 'Läser…' : 'Ladda upp fil'}
         </button>
-        <button type="button" onClick={onLoadSample} disabled={isLoading}>
+        <button type="button" onClick={onLoadSample} disabled={busy}>
           Exempel-CV
         </button>
         <button
           type="button"
           className="ghost"
-          onClick={() => onCvTextChange('')}
-          disabled={isLoading || !cvText}
+          onClick={() => {
+            onCvTextChange('')
+            reset()
+          }}
+          disabled={busy || !cvText}
         >
           Rensa
         </button>
       </div>
+
+      <p className="hint muted">Stöder {ACCEPTED_LABEL}. Filen läses i webbläsaren och laddas aldrig upp.</p>
     </form>
   )
 }
