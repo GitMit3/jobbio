@@ -3,8 +3,8 @@
 Jobbsökningsverktyg: analysera ditt CV mot ATS-krav, matcha det mot jobbannonser,
 skräddarsy ansökningar och håll koll på var du sökt.
 
-**Status:** Steg 1 (CV-upload + ATS-analys) är byggt och går att köra fristående.
-Steg 2–4 (jobbmatchning, skräddarsydd ansökan, ansökningsspårning) är inte påbörjade.
+**Status:** Steg 1 (CV-upload + ATS-analys) och steg 2 (jobbmatchning) är byggda.
+Steg 3–4 (skräddarsydd ansökan, ansökningsspårning) är inte påbörjade.
 
 ## Teknik
 
@@ -18,7 +18,7 @@ Steg 2–4 (jobbmatchning, skräddarsydd ansökan, ansökningsspårning) är int
 | Hosting | Vercel |
 
 API-nyckeln till Anthropic ligger enbart på servern. Webbläsaren pratar med
-`/api/analyze-cv`, aldrig direkt med Anthropic.
+`/api/*`, aldrig direkt med Anthropic.
 
 ## Kom igång
 
@@ -45,21 +45,28 @@ npm run preview   # förhandsgranska bygget (utan API:t – det kräver Vercel)
 
 1. Koppla repot i Vercel. Ramverket detekteras som Vite; inga byggkommandon behöver ändras.
 2. Lägg in `ANTHROPIC_API_KEY` som Environment Variable (Production + Preview).
-3. Deploya. `api/analyze-cv.js` blir en serverless-funktion med 60 s timeout (`vercel.json`).
+3. Deploya. Varje fil i `api/` blir en serverless-funktion med 60 s timeout (`vercel.json`).
 
 ## Projektstruktur
 
 ```
 api/
-  analyze-cv.js        POST-endpoint: CV-text in, strukturerad ATS-analys ut
+  analyze-cv.js        POST: CV-text in, strukturerad ATS-analys ut
+  match-job.js         POST: CV + annons in, matchning och kravlista ut
+  fetch-job-ad.js      POST: URL in, annonstext ut (SSRF-skyddad)
   _lib/claude.js       Anthropic-klient, modellval, felöversättning
-  _lib/http.js         JSON-body-läsning och svar (fungerar i både Vercel och Vite)
+  _lib/http.js         JSON-body-läsning och svar (Vercel och Vite)
+  _lib/htmlToText.js   HTML → annonstext, med schema.org JobPosting först
 src/
-  App.jsx              Sidlayout och tillstånd (idle / loading / done / error)
+  App.jsx              Flikar, delat CV-tillstånd, resultatvyer
+  hooks/
+    useAsyncAction.js  status/fel/resultat för ett API-anrop, med avbrott
   components/
-    CvUploader.jsx     Inklistring, .txt-upload, målroll, knappar
-    AnalysisResult.jsx Poäng, topplista, nyckelord, sektion för sektion
-    ScoreRing.jsx      Poängringen
+    CvUploader.jsx     Inklistring, filuppladdning, målroll
+    AnalysisResult.jsx ATS-poäng, topplista, nyckelord, sektion för sektion
+    JobAdInput.jsx     Annons via inklistring eller länk
+    MatchResult.jsx    Matchningsprocent, motivering, krav grupperade
+    ScoreRing.jsx      Poängringen, delad av båda vyerna
   lib/
     api.js             fetch-wrapper mot /api
     extractText.js     PDF/Word/text → ren text, helt i webbläsaren
@@ -85,7 +92,7 @@ det i systemet också.
 Båda parsers laddas först vid uppladdning, så huvudbundeln påverkas knappt
 (~6 kB); pdf.js och mammoth hamnar i egna chunkar.
 
-## Så fungerar analysen
+## Steg 1: Så fungerar ATS-analysen
 
 `api/analyze-cv.js` skickar CV:t till Claude med ett JSON-schema (Zod →
 structured outputs), så svaret alltid har samma form:
@@ -115,8 +122,50 @@ Modell och tankedjup styrs med `ANTHROPIC_MODEL` och `ANTHROPIC_EFFORT`
 (`low` | `medium` | `high` | `xhigh` | `max`, default `medium`). Höj `ANTHROPIC_EFFORT`
 om analyserna känns ytliga – det kostar mer och tar längre tid.
 
-### Gränser i steg 1
+## Steg 2: Jobbmatchning
 
-- Text mellan 200 och 60 000 tecken. Längre texter avvisas i stället för att klippas.
-- Inget sparas: ingen inloggning, ingen databas, inget CV lagras. Texten skickas
-  till Anthropic för analysen och kastas därefter.
+Annonsen klistras in eller hämtas från en länk. `api/match-job.js` skickar CV och
+annons till Claude med ett eget JSON-schema och får tillbaka:
+
+```jsonc
+{
+  "roleTitle": "Backendutvecklare",
+  "company": "Acme AB",
+  "matchPercent": 62,               // skallkrav väger tyngre än meriterande
+  "verdict": "möjlig match",        // stark (75+) | möjlig (45–74) | svag (<45)
+  "motivation": "…",
+  "requirements": [
+    {
+      "requirement": "3 års erfarenhet av Node.js",
+      "type": "skallkrav",          // eller "meriterande"
+      "status": "uppfylls",         // uppfylls | delvis | saknas
+      "evidence": "Backendutvecklare sedan 2020",
+      "comment": "Ange antal år explicit."
+    }
+  ]
+}
+```
+
+UI:t grupperar kraven i uppfylls / uppfylls delvis / saknas. CV:t delas mellan
+flikarna – lägg in det en gång under CV-analys, matcha sedan mot flera annonser.
+
+### Hämtning från länk
+
+`api/fetch-job-ad.js` hämtar sidan på servern och plockar ut annonstexten. Den
+letar först efter schema.org `JobPosting` i JSON-LD, vilket många jobbsajter
+lägger in – det ger ren annonstext utan menyer. Saknas den används sidans
+`<body>`, och användaren varnas om att rensa bort det som inte hör till annonsen.
+
+Eftersom URL:en kommer från användaren och hämtas av vår server är den
+SSRF-skyddad: bara http/https, DNS-slagning kontrolleras mot privata och
+interna adressintervall (inklusive molnmetadata på 169.254.169.254), och varje
+omdirigering kontrolleras om – max tre hopp, 3 MB och 12 sekunder.
+
+Alla sajter går inte att hämta. Sidor som kräver inloggning eller renderar
+annonsen med JavaScript ger ett tydligt besked om att klistra in texten istället.
+
+### Gränser
+
+- CV-text mellan 200 och 60 000 tecken, annonstext mellan 100 och 40 000. Längre texter avvisas i stället för att klippas.
+- Inget sparas: ingen inloggning, ingen databas. Texterna skickas till Anthropic
+  för analysen och kastas därefter.
