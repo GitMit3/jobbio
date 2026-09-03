@@ -1143,3 +1143,159 @@ code {
     transition: none;
   }
 }
+
+/* ------------------------------------------------------------ Ansökan --- */
+
+.sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.source {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.source:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.source-mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1px solid;
+}
+
+.source.ready .source-mark {
+  color: var(--good);
+  border-color: var(--good);
+}
+
+.source.missing .source-mark {
+  color: var(--red-bright);
+  border-color: var(--red-deep);
+}
+
+.source-label {
+  font-family: var(--display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.source button {
+  margin-top: 0.35rem;
+  padding-left: 0;
+}
+
+.application-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.document-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.document-head h3 {
+  margin-bottom: 0.15rem;
+}
+
+.document-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.document textarea {
+  font-family: var(--body);
+  font-size: 0.92rem;
+  line-height: 1.7;
+  background: #0e0e10;
+}
+
+.placeholders ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.placeholders li {
+  display: flex;
+  gap: 0.7rem;
+  align-items: baseline;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.placeholders li:first-child {
+  border-top: none;
+}
+
+.placeholders li span {
+  color: var(--dim);
+  font-size: 0.9rem;
+}
+
+.placeholders li.done code,
+.placeholders li.done span {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--good);
+}
+
+.placeholders.done {
+  border-color: var(--good);
+}
+
+.rationale {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rationale li {
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.rationale li:first-child {
+  border-top: none;
+  padding-top: 0.25rem;
+}
+
+.rationale-req {
+  font-family: var(--display);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--red-bright);
+}
+
+.rationale .action {
+  color: var(--text);
+  margin-top: 0.25rem;
+}

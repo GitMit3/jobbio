@@ -3,8 +3,8 @@
 Jobbsökningsverktyg: analysera ditt CV mot ATS-krav, matcha det mot jobbannonser,
 skräddarsy ansökningar och håll koll på var du sökt.
 
-**Status:** Steg 1 (CV-upload + ATS-analys) och steg 2 (jobbmatchning) är byggda.
-Steg 3–4 (skräddarsydd ansökan, ansökningsspårning) är inte påbörjade.
+**Status:** Steg 1–3 är byggda (ATS-analys, jobbmatchning, skräddarsydd ansökan).
+Steg 4 (ansökningsspårning) är inte påbörjat.
 
 ## Teknik
 
@@ -80,12 +80,14 @@ api/
   analyze-cv.js        POST: CV-text in, strukturerad ATS-analys ut
   match-job.js         POST: CV + annons in, matchning och kravlista ut
   fetch-job-ad.js      POST: URL in, annonstext ut (SSRF-skyddad)
+  tailor-application.js POST: CV + annons in, CV-utdrag och brev ut
   _lib/claude.js       Anthropic-klient, modellval, felöversättning
   _lib/http.js         JSON-body-läsning och svar (Vercel och Vite)
   _lib/htmlToText.js   HTML → annonstext, med schema.org JobPosting först
 shared/
   atsAnalysis.js       Schema och prompt för ATS-analysen
   jobMatch.js          Schema och prompt för jobbmatchningen
+  application.js       Schema, prompt och textrendering för ansökan
   manualMode.js        Bygger manuell prompt, validerar inklistrat svar
 src/
   App.jsx              Flikar, lägesväxling, delat CV-tillstånd
@@ -96,10 +98,13 @@ src/
     AnalysisResult.jsx ATS-poäng, topplista, nyckelord, sektion för sektion
     JobAdInput.jsx     Annons via inklistring eller länk
     MatchResult.jsx    Matchningsprocent, motivering, krav grupperade
+    ApplicationInputs.jsx  Underlagskoll och start av ansökan
+    ApplicationResult.jsx  Redigerbara dokument, platshållare, export
     ManualRunner.jsx   Kopiera prompt, klistra tillbaka svar
     ScoreMeter.jsx     Poängen som randmått, delad av båda vyerna
   lib/
     api.js             fetch-wrapper mot /api
+    export.js          Kopiering, nedladdning, ordräkning
     extractText.js     PDF/Word/text → ren text, helt i webbläsaren
     supabase.js        Supabase-klient (oanvänd tills vidare)
     sampleCv.js        Exempel-CV för att testa flödet
@@ -195,11 +200,48 @@ omdirigering kontrolleras om – max tre hopp, 3 MB och 12 sekunder.
 Alla sajter går inte att hämta. Sidor som kräver inloggning eller renderar
 annonsen med JavaScript ger ett tydligt besked om att klistra in texten istället.
 
+## Steg 3: Skräddarsydd ansökan
+
+Utgår från CV:t och annonsen som redan ligger i appen – inget behöver klistras in
+igen. `api/tailor-application.js` returnerar:
+
+```jsonc
+{
+  "roleTitle": "Kundsupportspecialist",
+  "company": "Nordic SaaS AB",
+  "cvSummary": "…",                 // omskriven profiltext, 3–4 meningar
+  "cvBullets": [
+    {
+      "rewritten": "Hanterade [antal] ärenden per vecka i mejl och telefon.",
+      "basis": "Ansvarig för support till kunder via mejl och telefon",
+      "requirement": "2 års erfarenhet av förstalinjesupport"
+    }
+  ],
+  "coverLetter": { "greeting": "…", "opening": "…", "body": ["…"], "closing": "…", "signoff": "…" },
+  "keywordsUsed": ["förstalinjesupport", "SLA"],
+  "placeholders": [{ "marker": "[antal]", "what": "Antal ärenden per vecka." }]
+}
+```
+
+**Inget hittas på.** Prompten förbjuder påhittad erfarenhet, kompetens och
+siffror; allt ska gå att spåra till CV:t. Saknas ett mätvärde som skulle göra
+texten starkare skrivs en platshållare i hakparenteser i stället för en gissning,
+och den listas under `placeholders`. Uppfyller CV:t inte ett krav utelämnas
+kravet hellre än att texten tänjer på sanningen.
+
+UI:t sätter ihop fälten till två redigerbara dokument – CV-utdrag och personligt
+brev. Platshållarna visas som en checklista som bockas av allteftersom du ersätter
+dem i texten, `basis` visar vad varje punkt bygger på i ditt CV, och **Återställ**
+tar tillbaka den genererade versionen. Export sker som kopiering eller nedladdning
+till `.txt`; filnamnet innehåller roll och företag.
+
 ### Gränser
 
 - CV-text mellan 200 och 60 000 tecken, annonstext mellan 100 och 40 000. Längre texter avvisas i stället för att klippas.
+- Ansökan exporteras som `.txt`. PDF och Word finns inte ännu.
 - Inget sparas: ingen inloggning, ingen databas. Texterna skickas till Anthropic
-  för analysen och kastas därefter.
+  för analysen och kastas därefter. Redigeringar lever bara i fliken – laddar du
+  om sidan är de borta.
 
 ## Design
 

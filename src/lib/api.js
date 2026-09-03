@@ -33,3 +33,9 @@ export async function fetchJobAd(url, options) {
   if (!payload?.text) throw new Error('Servern svarade utan annonstext.')
   return payload
 }
+
+export async function tailorApplication({ cvText, jobAdText }, options) {
+  const payload = await post('/api/tailor-application', { cvText, jobAdText }, options)
+  if (!payload?.application) throw new Error('Servern svarade utan ansökan.')
+  return payload
+}
