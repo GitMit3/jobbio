@@ -1,17 +1,20 @@
-import ScoreRing, { scoreTone } from './ScoreRing.jsx'
+import ScoreMeter, { scoreLabel, scoreTone } from './ScoreMeter.jsx'
 
 function PriorityTag({ priority }) {
   const key = { hög: 'high', medel: 'mid', låg: 'low' }[priority] || 'mid'
   return <span className={`tag prio-${key}`}>{priority}</span>
 }
 
-function Section({ section }) {
+function Section({ section, number }) {
   return (
-    <article className={`card section tone-${scoreTone(section.score)}`}>
+    <article className={`panel section tone-${scoreTone(section.score)}`}>
       <header className="section-head">
-        <div>
-          <h4>{section.name}</h4>
-          <p className="muted">{section.verdict}</p>
+        <div className="section-title">
+          <span className="section-index">{String(number).padStart(2, '0')}</span>
+          <div>
+            <h4>{section.name}</h4>
+            <p className="dim">{section.verdict}</p>
+          </div>
         </div>
         <div className="section-score">
           <strong>{section.score}</strong>
@@ -56,21 +59,21 @@ function Section({ section }) {
 export default function AnalysisResult({ analysis, meta }) {
   return (
     <div className="result">
-      <section className="card overview">
-        <ScoreRing score={analysis.overallScore} />
+      <section className="panel overview">
+        <ScoreMeter
+          score={analysis.overallScore}
+          label="ATS-poäng"
+          caption={meta?.targetRole ? `mot ${meta.targetRole}` : ''}
+        />
         <div className="overview-text">
+          <span className={`verdict tone-${scoreTone(analysis.overallScore)}`}>{scoreLabel(analysis.overallScore)}</span>
           <h2>Sammanfattning</h2>
           <p>{analysis.summary}</p>
-          {meta?.targetRole && (
-            <p className="muted small">
-              Analyserat mot rollen <strong>{meta.targetRole}</strong>
-            </p>
-          )}
         </div>
       </section>
 
       {analysis.topActions.length > 0 && (
-        <section className="card">
+        <section className="panel accent">
           <h3>Gör det här först</h3>
           <ol className="top-actions">
             {analysis.topActions.map((action, i) => (
@@ -81,10 +84,10 @@ export default function AnalysisResult({ analysis, meta }) {
       )}
 
       <section className="keywords">
-        <div className="card">
+        <div className="panel">
           <h3>Saknade nyckelord</h3>
           {analysis.missingKeywords.length === 0 ? (
-            <p className="muted">Inga viktiga nyckelord saknas.</p>
+            <p className="dim">Inga viktiga nyckelord saknas.</p>
           ) : (
             <ul className="keyword-list">
               {analysis.missingKeywords.map((item, i) => (
@@ -93,17 +96,17 @@ export default function AnalysisResult({ analysis, meta }) {
                     <code>{item.keyword}</code>
                     <PriorityTag priority={item.priority} />
                   </div>
-                  <p className="muted small">{item.reason}</p>
+                  <p className="dim small">{item.reason}</p>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        <div className="card">
+        <div className="panel">
           <h3>Nyckelord du redan har</h3>
           {analysis.presentKeywords.length === 0 ? (
-            <p className="muted">Inga tydliga nyckelord hittades.</p>
+            <p className="dim">Inga tydliga nyckelord hittades.</p>
           ) : (
             <div className="chips">
               {analysis.presentKeywords.map((word, i) => (
@@ -117,7 +120,7 @@ export default function AnalysisResult({ analysis, meta }) {
       </section>
 
       {analysis.atsRisks.length > 0 && (
-        <section className="card">
+        <section className="panel">
           <h3>Risker vid ATS-läsning</h3>
           <ul className="risks">
             {analysis.atsRisks.map((risk, i) => (
@@ -128,10 +131,10 @@ export default function AnalysisResult({ analysis, meta }) {
       )}
 
       <section>
-        <h3 className="sections-title">Sektion för sektion</h3>
+        <h3 className="group-title">Sektion för sektion</h3>
         <div className="sections">
           {analysis.sections.map((section, i) => (
-            <Section key={i} section={section} />
+            <Section section={section} number={i + 1} key={i} />
           ))}
         </div>
       </section>

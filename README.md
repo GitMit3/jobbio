@@ -15,24 +15,50 @@ Steg 3–4 (skräddarsydd ansökan, ansökningsspårning) är inte påbörjade.
 | AI | Anthropic Claude (`claude-opus-5`) med structured outputs |
 | Filinläsning | pdf.js och mammoth – körs i webbläsaren, lazy-laddade |
 | Data/auth | Supabase – förberett men inte inkopplat ännu |
+| Typsnitt | Archivo (rubriker) och Inter (brödtext) via Google Fonts |
 | Hosting | Vercel |
 
 API-nyckeln till Anthropic ligger enbart på servern. Webbläsaren pratar med
 `/api/*`, aldrig direkt med Anthropic.
 
+## Två körlägen
+
+Appen kan köras med eller utan API-nyckel. Läget väljs uppe till höger och
+sparas i webbläsaren.
+
+**Manuellt läge (standard).** Appen bygger prompten, du kopierar den och kör den
+i Claude.ai eller Claude Code där du redan har ett abonnemang, och klistrar
+tillbaka svaret. Samma modell och samma prompt som API-läget – alltså samma
+kvalitet – utan kostnad per analys. Priset är två klipp-och-klistra per körning.
+Ingen `ANTHROPIC_API_KEY` behövs.
+
+**API-läge.** Analysen körs automatiskt mot Anthropic med din nyckel. Kräver
+krediter på [console.anthropic.com](https://console.anthropic.com/settings/keys);
+ett Claude Pro- eller Max-abonnemang ger inte API-tillgång.
+
+Prompt och JSON-schema ligger i `shared/` och används av båda lägena, så de kan
+inte glida isär. Skillnaden är att API-läget låter Anthropic framtvinga schemat
+med structured outputs, medan manuellt läge skickar med schemat i klartext och
+validerar svaret med Zod när du klistrar tillbaka det.
+
 ## Kom igång
 
 ```bash
 npm install
-cp .env.example .env      # fyll i ANTHROPIC_API_KEY
 npm run dev               # http://localhost:5173
+```
+
+Det räcker för manuellt läge. Ska du köra API-läget behövs dessutom:
+
+```bash
+cp .env.example .env      # fyll i ANTHROPIC_API_KEY
 ```
 
 `npm run dev` startar både frontend och API:t – ingen `vercel dev` behövs.
 Vite laddar `.env` och skickar in servervariablerna i dev-serverns Node-process
 (se `vite.config.js`).
 
-Testa utan eget CV: klicka **Exempel-CV** och sedan **Analysera CV**.
+Testa utan eget CV: klicka **Exempel-CV** och sedan **Skapa prompt**.
 
 Övriga kommandon:
 
@@ -57,16 +83,21 @@ api/
   _lib/claude.js       Anthropic-klient, modellval, felöversättning
   _lib/http.js         JSON-body-läsning och svar (Vercel och Vite)
   _lib/htmlToText.js   HTML → annonstext, med schema.org JobPosting först
+shared/
+  atsAnalysis.js       Schema och prompt för ATS-analysen
+  jobMatch.js          Schema och prompt för jobbmatchningen
+  manualMode.js        Bygger manuell prompt, validerar inklistrat svar
 src/
-  App.jsx              Flikar, delat CV-tillstånd, resultatvyer
+  App.jsx              Flikar, lägesväxling, delat CV-tillstånd
   hooks/
-    useAsyncAction.js  status/fel/resultat för ett API-anrop, med avbrott
+    useFeatureRun.js   Driver en analys i API-läge eller manuellt läge
   components/
     CvUploader.jsx     Inklistring, filuppladdning, målroll
     AnalysisResult.jsx ATS-poäng, topplista, nyckelord, sektion för sektion
     JobAdInput.jsx     Annons via inklistring eller länk
     MatchResult.jsx    Matchningsprocent, motivering, krav grupperade
-    ScoreRing.jsx      Poängringen, delad av båda vyerna
+    ManualRunner.jsx   Kopiera prompt, klistra tillbaka svar
+    ScoreMeter.jsx     Poängen som randmått, delad av båda vyerna
   lib/
     api.js             fetch-wrapper mot /api
     extractText.js     PDF/Word/text → ren text, helt i webbläsaren
@@ -169,3 +200,19 @@ annonsen med JavaScript ger ett tydligt besked om att klistra in texten iställe
 - CV-text mellan 200 och 60 000 tecken, annonstext mellan 100 och 40 000. Längre texter avvisas i stället för att klippas.
 - Inget sparas: ingen inloggning, ingen databas. Texterna skickas till Anthropic
   för analysen och kastas därefter.
+
+## Design
+
+Svart botten, rött som enda accent, benvitt som text – Milans rossoneri. De
+röd-svarta ränderna är bärande snarare än dekorativa: de återkommer i loggan,
+som kant på framhävda paneler, och i poängmåttet där varje rand är fem poäng.
+
+Uttrycket är redaktionellt: skarpa hörn, hårfina linjer, ingen mjuk skuggning.
+Rubriker och etiketter sätts i Archivo med versaler och spärrad tracking, all
+data i monospace så siffror står i kolumn. Numrerade flikar (`01`, `02`) och
+sektioner ger dokumentkänsla i stället för app-känsla.
+
+Färgerna gör två jobb samtidigt, så de hålls isär: rött är varumärket och
+används strukturellt, medan status har egna hues – grönt för uppfyllt, gult för
+delvis, rött för saknat. Poängmåttet byter färg med nivån så att en svag poäng
+syns innan du hunnit läsa siffran.

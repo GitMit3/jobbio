@@ -3,7 +3,14 @@ import { fetchJobAd } from '../lib/api.js'
 
 const MIN_CHARS = 100
 
-export default function JobAdInput({ jobAdText, onJobAdTextChange, onMatch, isLoading, cvReady }) {
+export default function JobAdInput({
+  jobAdText,
+  onJobAdTextChange,
+  onMatch,
+  isLoading,
+  cvReady,
+  submitLabel = 'Jämför mot mitt CV',
+}) {
   const adId = useId()
   const urlId = useId()
   const [url, setUrl] = useState('')
@@ -32,7 +39,7 @@ export default function JobAdInput({ jobAdText, onJobAdTextChange, onMatch, isLo
 
   return (
     <form
-      className="card uploader"
+      className="panel uploader"
       onSubmit={(event) => {
         event.preventDefault()
         onMatch()
@@ -99,7 +106,7 @@ export default function JobAdInput({ jobAdText, onJobAdTextChange, onMatch, isLo
 
       <div className="uploader-actions">
         <button type="submit" className="primary" disabled={busy || !cvReady || jobAdText.trim().length < MIN_CHARS}>
-          {isLoading ? 'Jämför…' : 'Jämför mot mitt CV'}
+          {isLoading ? 'Jämför…' : submitLabel}
         </button>
         <button
           type="button"

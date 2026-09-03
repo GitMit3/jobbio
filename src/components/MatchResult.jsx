@@ -1,9 +1,9 @@
-import ScoreRing from './ScoreRing.jsx'
+import ScoreMeter from './ScoreMeter.jsx'
 
 const GROUPS = [
-  { status: 'uppfylls', title: 'Krav du uppfyller' },
-  { status: 'delvis', title: 'Krav du uppfyller delvis' },
-  { status: 'saknas', title: 'Krav som saknas' },
+  { status: 'uppfylls', title: 'Krav du uppfyller', short: 'uppfylls' },
+  { status: 'delvis', title: 'Krav du uppfyller delvis', short: 'delvis' },
+  { status: 'saknas', title: 'Krav som saknas', short: 'saknas' },
 ]
 
 function Requirement({ item }) {
@@ -15,7 +15,8 @@ function Requirement({ item }) {
       </div>
       {item.evidence && (
         <p className="evidence">
-          <span className="muted small">Från ditt CV:</span> {item.evidence}
+          <span className="evidence-label">Ur ditt CV</span>
+          {item.evidence}
         </p>
       )}
       {item.comment && <p className="action">{item.comment}</p>}
@@ -30,36 +31,34 @@ export default function MatchResult({ match }) {
 
   return (
     <div className="result">
-      <section className="card overview">
-        <ScoreRing score={match.matchPercent} label="Matchning" />
+      <section className="panel overview">
+        <ScoreMeter score={match.matchPercent} label="Matchning" />
         <div className="overview-text">
+          <span className={`verdict verdict-${match.verdict.split(' ')[0]}`}>{match.verdict}</span>
           <h2>
             {match.roleTitle || 'Tjänsten'}
-            {match.company && <span className="muted"> · {match.company}</span>}
+            {match.company && <span className="dim"> · {match.company}</span>}
           </h2>
-          <p className={`verdict verdict-${match.verdict.split(' ')[0]}`}>{match.verdict}</p>
           <p>{match.motivation}</p>
         </div>
       </section>
 
-      <section className="card">
-        <div className="match-summary">
-          {GROUPS.map(({ status, title }) => (
-            <div key={status} className={`summary-cell status-${status}`}>
-              <strong>{counts[status]}</strong>
-              <span>{title.toLowerCase()}</span>
-            </div>
-          ))}
-        </div>
+      <section className="panel match-summary">
+        {GROUPS.map(({ status, short }) => (
+          <div key={status} className={`summary-cell status-${status}`}>
+            <strong>{counts[status]}</strong>
+            <span>{short}</span>
+          </div>
+        ))}
       </section>
 
       {GROUPS.map(({ status, title }) => {
         const items = match.requirements.filter((item) => item.status === status)
         if (!items.length) return null
         return (
-          <section className="card" key={status}>
+          <section className={`panel requirement-group status-${status}`} key={status}>
             <h3>
-              {title} <span className="muted">({items.length})</span>
+              {title} <span className="dim">({items.length})</span>
             </h3>
             <ul className="requirements">
               {items.map((item, i) => (

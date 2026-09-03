@@ -11,6 +11,7 @@ export default function CvUploader({
   onAnalyze,
   onLoadSample,
   isLoading,
+  submitLabel = 'Analysera CV',
 }) {
   const cvId = useId()
   const roleId = useId()
@@ -51,7 +52,7 @@ export default function CvUploader({
 
   return (
     <form
-      className="card uploader"
+      className="panel uploader"
       onSubmit={(event) => {
         event.preventDefault()
         onAnalyze()
@@ -112,7 +113,7 @@ export default function CvUploader({
 
       <div className="uploader-actions">
         <button type="submit" className="primary" disabled={busy || cvText.trim().length < MIN_CHARS}>
-          {isLoading ? 'Analyserar…' : 'Analysera CV'}
+          {isLoading ? 'Analyserar…' : submitLabel}
         </button>
 
         <input
