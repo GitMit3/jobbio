@@ -1299,3 +1299,232 @@ code {
   color: var(--text);
   margin-top: 0.25rem;
 }
+
+/* ----------------------------------------------- Ansökningsspårning --- */
+
+.layout.single {
+  grid-template-columns: 1fr;
+  max-width: 1000px;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  align-self: center;
+}
+
+.account-email {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--dim);
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth {
+  max-width: 420px;
+  margin: 2rem auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.auth h3 {
+  margin: 0;
+}
+
+select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #0e0e10;
+  color: var(--text);
+  font: inherit;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px var(--red);
+}
+
+.add-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.add-grid .wide {
+  grid-column: span 2;
+}
+
+@media (max-width: 760px) {
+  .add-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .add-grid .wide {
+    grid-column: span 2;
+  }
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--line);
+  padding: 1px;
+}
+
+.filter {
+  border: none;
+  border-radius: 0;
+  background: var(--panel);
+  padding: 0.8rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.filter strong {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.filter span {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--faint);
+}
+
+.filter:hover:not(.active) {
+  background: var(--panel-raised);
+}
+
+.filter.active {
+  background: var(--panel-raised);
+  box-shadow: inset 0 -3px 0 var(--red);
+}
+
+.filter.tone-good strong {
+  color: var(--good);
+}
+.filter.tone-ok strong {
+  color: var(--text);
+}
+.filter.tone-bad strong {
+  color: var(--red-bright);
+}
+
+.applications {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+
+.application {
+  background: var(--panel);
+  display: grid;
+  /* Fasta bredder, annars sätter varje rad sina egna kolumner och listan
+     hackar i sidled mellan raderna. */
+  grid-template-columns: 1fr 7rem 5rem 8.5rem auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  border-left: 3px solid var(--line);
+}
+
+.application.tone-good {
+  border-left-color: var(--good);
+}
+.application.tone-ok {
+  border-left-color: var(--red);
+}
+.application.tone-bad {
+  border-left-color: var(--red-deep);
+}
+
+.application-main {
+  min-width: 0;
+}
+
+.application-role {
+  font-weight: 600;
+}
+
+.application-main p {
+  margin: 0.15rem 0 0;
+}
+
+.application-date {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+.application-link a {
+  font-family: var(--display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.faint {
+  color: var(--faint);
+}
+
+.status-select {
+  font-family: var(--display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.35rem 0.5rem;
+}
+
+.status-select.tone-good {
+  color: var(--good);
+  border-color: var(--good);
+}
+.status-select.tone-bad {
+  color: var(--red-bright);
+  border-color: var(--red-deep);
+}
+
+.confirm {
+  display: flex;
+  gap: 0.3rem;
+}
+
+button.danger {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+}
+
+@media (max-width: 860px) {
+  .application {
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem;
+  }
+  .application-main {
+    grid-column: span 2;
+  }
+  .filters {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

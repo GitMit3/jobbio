@@ -3,8 +3,8 @@
 Jobbsökningsverktyg: analysera ditt CV mot ATS-krav, matcha det mot jobbannonser,
 skräddarsy ansökningar och håll koll på var du sökt.
 
-**Status:** Steg 1–3 är byggda (ATS-analys, jobbmatchning, skräddarsydd ansökan).
-Steg 4 (ansökningsspårning) är inte påbörjat.
+**Status:** Alla fyra steg är byggda – ATS-analys, jobbmatchning, skräddarsydd
+ansökan och ansökningsspårning.
 
 ## Teknik
 
@@ -14,7 +14,7 @@ Steg 4 (ansökningsspårning) är inte påbörjat.
 | API | Vercel Functions (`/api`), samma handlers körs lokalt via Vite-middleware |
 | AI | Anthropic Claude (`claude-opus-5`) med structured outputs |
 | Filinläsning | pdf.js och mammoth – körs i webbläsaren, lazy-laddade |
-| Data/auth | Supabase – förberett men inte inkopplat ännu |
+| Data/auth | Supabase (Postgres + auth), används av ansökningsspårningen |
 | Typsnitt | Archivo (rubriker) och Inter (brödtext) via Google Fonts |
 | Hosting | Vercel |
 
@@ -48,11 +48,16 @@ npm install
 npm run dev               # http://localhost:5173
 ```
 
-Det räcker för manuellt läge. Ska du köra API-läget behövs dessutom:
+Det räcker för manuellt läge och flikarna 01–03. För API-läget och för
+ansökningsspårningen behövs `.env`:
 
 ```bash
-cp .env.example .env      # fyll i ANTHROPIC_API_KEY
+cp .env.example .env
 ```
+
+- **API-läge:** fyll i `ANTHROPIC_API_KEY`.
+- **Ansökningsspårning:** fyll i `VITE_SUPABASE_URL` och `VITE_SUPABASE_ANON_KEY`,
+  se nästa avsnitt.
 
 `npm run dev` startar både frontend och API:t – ingen `vercel dev` behövs.
 Vite laddar `.env` och skickar in servervariablerna i dev-serverns Node-process
@@ -67,10 +72,33 @@ npm run build     # produktionsbygge till dist/
 npm run preview   # förhandsgranska bygget (utan API:t – det kräver Vercel)
 ```
 
+## Supabase
+
+Behövs bara för flik 04. Utan konfiguration fungerar resten av appen som vanligt
+och fliken visar en instruktion i stället för att krascha.
+
+1. Skapa ett projekt på [supabase.com](https://supabase.com).
+2. **SQL Editor → New query** → klistra in `supabase/schema.sql` → **Run**.
+   Skriptet skapar tabellen `applications`, indexet, RLS-reglerna och en trigger
+   för `updated_at`. Det går att köra om utan att data försvinner.
+3. **Project Settings → API** → kopiera *Project URL* och *anon public*-nyckeln
+   till `VITE_SUPABASE_URL` respektive `VITE_SUPABASE_ANON_KEY` i `.env`.
+4. **Authentication → Providers → Email**: stäng av *Confirm email* om du vill
+   kunna skapa konto och logga in direkt utan att vänta på ett mejl. Låter du det
+   vara på behöver du klicka bekräftelselänken innan första inloggningen.
+5. Starta om `npm run dev` – Vite läser `.env` vid uppstart.
+
+Anon-nyckeln är avsedd att ligga i webbläsaren; det som skyddar data är
+**Row Level Security**. Varje policy i schemat kräver `auth.uid() = user_id`, så
+en inloggad användare kan bara läsa och ändra sina egna rader. Kör du inte
+`schema.sql` finns inga policies, och då släpper Postgres inte igenom någonting
+alls.
+
 ## Deploy till Vercel
 
 1. Koppla repot i Vercel. Ramverket detekteras som Vite; inga byggkommandon behöver ändras.
-2. Lägg in `ANTHROPIC_API_KEY` som Environment Variable (Production + Preview).
+2. Lägg in `ANTHROPIC_API_KEY`, `VITE_SUPABASE_URL` och `VITE_SUPABASE_ANON_KEY`
+   som Environment Variables (Production + Preview).
 3. Deploya. Varje fil i `api/` blir en serverless-funktion med 60 s timeout (`vercel.json`).
 
 ## Projektstruktur
@@ -84,6 +112,8 @@ api/
   _lib/claude.js       Anthropic-klient, modellval, felöversättning
   _lib/http.js         JSON-body-läsning och svar (Vercel och Vite)
   _lib/htmlToText.js   HTML → annonstext, med schema.org JobPosting först
+supabase/
+  schema.sql           Tabell, index, RLS-policies och updated_at-trigger
 shared/
   atsAnalysis.js       Schema och prompt för ATS-analysen
   jobMatch.js          Schema och prompt för jobbmatchningen
@@ -93,6 +123,7 @@ src/
   App.jsx              Flikar, lägesväxling, delat CV-tillstånd
   hooks/
     useFeatureRun.js   Driver en analys i API-läge eller manuellt läge
+    useAuth.js         Håller Supabase-sessionen
   components/
     CvUploader.jsx     Inklistring, filuppladdning, målroll
     AnalysisResult.jsx ATS-poäng, topplista, nyckelord, sektion för sektion
@@ -100,13 +131,16 @@ src/
     MatchResult.jsx    Matchningsprocent, motivering, krav grupperade
     ApplicationInputs.jsx  Underlagskoll och start av ansökan
     ApplicationResult.jsx  Redigerbara dokument, platshållare, export
+    ApplicationsBoard.jsx  Dashboard: lägg till, filtrera, byt status, ta bort
+    AuthPanel.jsx      Inloggning och kontoskapande
     ManualRunner.jsx   Kopiera prompt, klistra tillbaka svar
     ScoreMeter.jsx     Poängen som randmått, delad av båda vyerna
   lib/
     api.js             fetch-wrapper mot /api
+    applications.js    CRUD mot Supabase, statusvärden, felöversättning
     export.js          Kopiering, nedladdning, ordräkning
     extractText.js     PDF/Word/text → ren text, helt i webbläsaren
-    supabase.js        Supabase-klient (oanvänd tills vidare)
+    supabase.js        Supabase-klient, null när konfiguration saknas
     sampleCv.js        Exempel-CV för att testa flödet
 ```
 
@@ -235,13 +269,30 @@ dem i texten, `basis` visar vad varje punkt bygger på i ditt CV, och **Återst�
 tar tillbaka den genererade versionen. Export sker som kopiering eller nedladdning
 till `.txt`; filnamnet innehåller roll och företag.
 
+## Steg 4: Ansökningsspårning
+
+Kräver inloggning. Varje rad har företag, roll, datum, status, länk till annonsen
+och en fri anteckning. Statusarna är `skickad`, `svar`, `intervju` och `avslag` –
+samma fyra i UI:t, i `src/lib/applications.js` och i check-villkoret i
+`schema.sql`.
+
+Räknarna högst upp fungerar som filter: klicka på en status för att bara se de
+ansökningarna. Statusbyte sparas direkt via en `select` i raden.
+
+Statusbyten och borttagningar är **optimistiska** – UI:t uppdateras först och
+rullas tillbaka om Supabase säger nej, med felet synligt. Det gör listan
+följsam utan att ljuga om vad som faktiskt sparats.
+
 ### Gränser
 
 - CV-text mellan 200 och 60 000 tecken, annonstext mellan 100 och 40 000. Längre texter avvisas i stället för att klippas.
 - Ansökan exporteras som `.txt`. PDF och Word finns inte ännu.
-- Inget sparas: ingen inloggning, ingen databas. Texterna skickas till Anthropic
-  för analysen och kastas därefter. Redigeringar lever bara i fliken – laddar du
-  om sidan är de borta.
+- CV, annons och ansökningstext sparas inte någonstans. De skickas till Anthropic
+  för analysen och kastas därefter, och redigeringar lever bara i fliken – laddar
+  du om sidan är de borta. Bara ansökningsspårningen lagrar data, och då i din
+  egen Supabase.
+- Ansökningarna kan inte redigeras i efterhand annat än status. Fel i företag
+  eller roll får tas bort och läggas till på nytt.
 
 ## Design
 
