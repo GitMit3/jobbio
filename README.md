@@ -21,25 +21,42 @@ ansökan och ansökningsspårning.
 API-nyckeln till Anthropic ligger enbart på servern. Webbläsaren pratar med
 `/api/*`, aldrig direkt med Anthropic.
 
-## Två körlägen
+## Tre körlägen
 
-Appen kan köras med eller utan API-nyckel. Läget väljs uppe till höger och
-sparas i webbläsaren.
+Läget väljs uppe till höger och sparas i webbläsaren. Alla tre använder samma
+prompter och scheman ur `shared/` – skillnaden är bara vägen fram till modellen.
 
-**Manuellt läge (standard).** Appen bygger prompten, du kopierar den och kör den
-i Claude.ai eller Claude Code där du redan har ett abonnemang, och klistrar
-tillbaka svaret. Samma modell och samma prompt som API-läget – alltså samma
-kvalitet – utan kostnad per analys. Priset är två klipp-och-klistra per körning.
-Ingen `ANTHROPIC_API_KEY` behövs.
+**Manuellt (standard).** Appen bygger prompten, du kopierar den och kör den i
+Claude.ai, och klistrar tillbaka svaret. Ingen nyckel, ingen kostnad. Priset är
+två klipp-och-klistra per körning.
 
-**API-läge.** Analysen körs automatiskt mot Anthropic med din nyckel. Kräver
-krediter på [console.anthropic.com](https://console.anthropic.com/settings/keys);
-ett Claude Pro- eller Max-abonnemang ger inte API-tillgång.
+**Claude Code (bara lokalt).** Ett knapptryck, som API-läget, men prompten körs
+genom din lokala Claude Code i headless-läge (`claude -p`). Autentiseringen är
+din vanliga inloggning, så analysen går mot **abonnemanget** i stället för
+API-krediter. Kräver att Claude Code är installerat och inloggat:
 
-Prompt och JSON-schema ligger i `shared/` och används av båda lägena, så de kan
-inte glida isär. Skillnaden är att API-läget låter Anthropic framtvinga schemat
-med structured outputs, medan manuellt läge skickar med schemat i klartext och
-validerar svaret med Zod när du klistrar tillbaka det.
+```bash
+npm install -g @anthropic-ai/claude-code
+claude          # logga in, avsluta sedan
+claude --version
+```
+
+Läget är avsiktligt spärrat till utvecklingsmiljön. `vite.config.js` sätter
+`JOBBIO_LOCAL_RUNTIME=1` när dev-servern startar, och `api/claude-code.js`
+svarar 403 utan den – en deploy har ingen CLI att anropa och ska inte låtsas
+annat. Räkna med 60–120 sekunder per körning; hela Claude Code-runtimen startar
+per anrop. Valfria inställningar i `.env`: `JOBBIO_LOCAL_MODEL`,
+`JOBBIO_LOCAL_EFFORT`, `JOBBIO_LOCAL_TIMEOUT_MS`.
+
+**API.** Analysen körs mot Anthropic med din nyckel. Kräver krediter på
+[console.anthropic.com](https://console.anthropic.com/settings/keys); ett Claude
+Pro- eller Max-abonnemang ger inte API-tillgång. Det här är det enda automatiska
+läget som fungerar i en deploy.
+
+Skillnaden i hur schemat framtvingas: API-läget använder structured outputs, så
+Anthropic garanterar formen. De andra två skickar med schemat i klartext och
+validerar svaret med Zod – därför kan de klaga på formatet, vilket API-läget
+aldrig gör.
 
 ## Kom igång
 
@@ -56,6 +73,7 @@ cp .env.example .env
 ```
 
 - **API-läge:** fyll i `ANTHROPIC_API_KEY`.
+- **Claude Code-läge:** ingen konfiguration alls, bara Claude Code installerat.
 - **Ansökningsspårning:** fyll i `VITE_SUPABASE_URL` och `VITE_SUPABASE_ANON_KEY`,
   se nästa avsnitt.
 
@@ -63,7 +81,7 @@ cp .env.example .env
 Vite laddar `.env` och skickar in servervariablerna i dev-serverns Node-process
 (se `vite.config.js`).
 
-Testa utan eget CV: klicka **Exempel-CV** och sedan **Skapa prompt**.
+Testa utan eget CV: klicka **Exempel-CV** och sedan knappen under textrutan.
 
 Övriga kommandon:
 
@@ -109,6 +127,8 @@ api/
   match-job.js         POST: CV + annons in, matchning och kravlista ut
   fetch-job-ad.js      POST: URL in, annonstext ut (SSRF-skyddad)
   tailor-application.js POST: CV + annons in, CV-utdrag och brev ut
+  claude-code.js       POST: kör vilken som helst av prompterna via lokal CLI
+  _lib/claudeCode.js   Startar `claude -p`, dev-spärr, felöversättning
   _lib/claude.js       Anthropic-klient, modellval, felöversättning
   _lib/http.js         JSON-body-läsning och svar (Vercel och Vite)
   _lib/htmlToText.js   HTML → annonstext, med schema.org JobPosting först
@@ -122,7 +142,7 @@ shared/
 src/
   App.jsx              Flikar, lägesväxling, delat CV-tillstånd
   hooks/
-    useFeatureRun.js   Driver en analys i API-läge eller manuellt läge
+    useFeatureRun.js   Driver en analys i något av de tre körlägena
     useAuth.js         Håller Supabase-sessionen
   components/
     CvUploader.jsx     Inklistring, filuppladdning, målroll

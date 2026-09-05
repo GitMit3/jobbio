@@ -10,7 +10,7 @@ import ApplicationsBoard from './components/ApplicationsBoard.jsx'
 import AuthPanel from './components/AuthPanel.jsx'
 import { useFeatureRun } from './hooks/useFeatureRun.js'
 import { useAuth } from './hooks/useAuth.js'
-import { analyzeCv, matchJob, tailorApplication } from './lib/api.js'
+import { analyzeCv, matchJob, runWithClaudeCode, tailorApplication } from './lib/api.js'
 import { isSupabaseConfigured, supabase } from './lib/supabase.js'
 import { SAMPLE_CV } from './lib/sampleCv.js'
 import {
@@ -42,6 +42,7 @@ const TABS = [
 // Modulnivå så identiteten är stabil mellan renderingar.
 const atsRunner = {
   apiAction: analyzeCv,
+  localAction: (input, options) => runWithClaudeCode('ats', input, options),
   buildPrompt: (input) =>
     buildManualPrompt({ system: ATS_SYSTEM_PROMPT, user: buildAtsUserPrompt(input), schema: analysisSchema }),
   parseResult: (text) => {
@@ -52,6 +53,7 @@ const atsRunner = {
 
 const matchRunner = {
   apiAction: matchJob,
+  localAction: (input, options) => runWithClaudeCode('match', input, options),
   buildPrompt: (input) =>
     buildManualPrompt({ system: MATCH_SYSTEM_PROMPT, user: buildMatchUserPrompt(input), schema: matchSchema }),
   parseResult: (text) => {
@@ -62,6 +64,7 @@ const matchRunner = {
 
 const applicationRunner = {
   apiAction: tailorApplication,
+  localAction: (input, options) => runWithClaudeCode('application', input, options),
   buildPrompt: (input) =>
     buildManualPrompt({
       system: APPLICATION_SYSTEM_PROMPT,
@@ -74,10 +77,16 @@ const applicationRunner = {
   },
 }
 
+const MODES = [
+  { id: 'manual', label: 'Manuellt', hint: 'Kopiera prompten och kör den i Claude.ai – ingen nyckel, ingen kostnad' },
+  { id: 'local', label: 'Claude Code', hint: 'Kör automatiskt via din lokala Claude Code och ditt abonnemang' },
+  { id: 'api', label: 'API', hint: 'Kör automatiskt via din Anthropic-API-nyckel' },
+]
+
 function readStoredMode() {
   try {
     const stored = localStorage.getItem(MODE_KEY)
-    return stored === 'api' || stored === 'manual' ? stored : 'manual'
+    return MODES.some((m) => m.id === stored) ? stored : 'manual'
   } catch {
     return 'manual'
   }
@@ -138,17 +147,20 @@ export default function App() {
 
   const startAts = () => {
     const input = { cvText, targetRole }
-    return isManual ? ats.showPrompt(input) : ats.runApi(input)
+    if (isManual) return ats.showPrompt(input)
+    return mode === 'local' ? ats.runLocal(input) : ats.runApi(input)
   }
 
   const startMatch = () => {
     const input = { cvText, jobAdText }
-    return isManual ? match.showPrompt(input) : match.runApi(input)
+    if (isManual) return match.showPrompt(input)
+    return mode === 'local' ? match.runLocal(input) : match.runApi(input)
   }
 
   const startApplication = () => {
     const input = { cvText, jobAdText }
-    return isManual ? application.showPrompt(input) : application.runApi(input)
+    if (isManual) return application.showPrompt(input)
+    return mode === 'local' ? application.runLocal(input) : application.runApi(input)
   }
 
   const runner = { cv: ats, match, application }[tab]
@@ -190,22 +202,18 @@ export default function App() {
           ) : (
             !isTracker && (
               <div className="mode-switch" role="group" aria-label="Körläge">
-                <button
-                  type="button"
-                  className={isManual ? 'active' : ''}
-                  onClick={() => setMode('manual')}
-                  title="Kopiera prompten och kör den i Claude.ai – ingen API-nyckel behövs"
-                >
-                  Manuellt
-                </button>
-                <button
-                  type="button"
-                  className={!isManual ? 'active' : ''}
-                  onClick={() => setMode('api')}
-                  title="Kör analysen automatiskt via din Anthropic-API-nyckel"
-                >
-                  API-nyckel
-                </button>
+                {MODES.map(({ id, label, hint }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={mode === id ? 'active' : ''}
+                    onClick={() => setMode(id)}
+                    title={hint}
+                    aria-pressed={mode === id}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             )
           )}
@@ -291,7 +299,11 @@ export default function App() {
                     <span />
                     <span />
                   </div>
-                  <p>Claude arbetar. Det tar normalt 20–45 sekunder.</p>
+                  <p>
+                    {mode === 'local'
+                      ? 'Claude Code kör prompten lokalt. Första anropet tar längre tid eftersom hela runtimen startar.'
+                      : 'Claude arbetar. Det tar normalt 20–45 sekunder.'}
+                  </p>
                 </Panel>
               )}
 
@@ -331,6 +343,7 @@ export default function App() {
           Analyserna görs av Claude och är rådgivande. CV, annons och ansökan lagras inte – bara ansökningsspårningen
           sparar data, och då i din egen Supabase.
           {isManual && !isTracker && ' I manuellt läge lämnar texten aldrig din dator förrän du själv klistrar in den.'}
+          {mode === 'local' && !isTracker && ' Claude Code-läget körs lokalt mot ditt abonnemang och finns inte i en deploy.'}
         </p>
       </footer>
     </div>

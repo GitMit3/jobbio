@@ -6,37 +6,39 @@ const INITIAL = { status: 'idle', error: '', data: null, prompt: '' }
  * Driver en analys i något av två lägen:
  *
  *  - API-läge: `runApi` anropar serverfunktionen, som pratar med Anthropic.
+ *  - Claude Code-läge: `runLocal` går samma väg, men serverfunktionen kör
+ *    prompten genom din lokala Claude Code i stället för mot API:t.
  *  - Manuellt läge: `showPrompt` bygger prompten användaren kör i Claude.ai,
  *    och `submitManual` validerar svaret som klistras tillbaka.
  *
- * Status: idle → loading → done | error (API), eller idle → prompt → done (manuellt).
- * Alla callbacks måste vara stabila mellan renderingar.
+ * Status: idle → loading → done | error (automatiskt), eller idle → prompt →
+ * done (manuellt). Alla callbacks måste vara stabila mellan renderingar.
  */
-export function useFeatureRun({ apiAction, buildPrompt, parseResult }) {
+export function useFeatureRun({ apiAction, localAction, buildPrompt, parseResult }) {
   const [state, setState] = useState(INITIAL)
   const abortRef = useRef(null)
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const runApi = useCallback(
-    async (input) => {
-      abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
+  const run = useCallback(async (action, input) => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
-      setState({ ...INITIAL, status: 'loading' })
+    setState({ ...INITIAL, status: 'loading' })
 
-      try {
-        const data = await apiAction(input, { signal: controller.signal })
-        if (controller.signal.aborted) return
-        setState({ status: 'done', error: '', data, prompt: '' })
-      } catch (error) {
-        if (controller.signal.aborted || error.name === 'AbortError') return
-        setState({ status: 'error', error: error.message, data: null, prompt: '' })
-      }
-    },
-    [apiAction],
-  )
+    try {
+      const data = await action(input, { signal: controller.signal })
+      if (controller.signal.aborted) return
+      setState({ status: 'done', error: '', data, prompt: '' })
+    } catch (error) {
+      if (controller.signal.aborted || error.name === 'AbortError') return
+      setState({ status: 'error', error: error.message, data: null, prompt: '' })
+    }
+  }, [])
+
+  const runApi = useCallback((input) => run(apiAction, input), [run, apiAction])
+  const runLocal = useCallback((input) => run(localAction, input), [run, localAction])
 
   const showPrompt = useCallback(
     (input) => {
@@ -64,5 +66,5 @@ export function useFeatureRun({ apiAction, buildPrompt, parseResult }) {
     setState(INITIAL)
   }, [])
 
-  return { ...state, runApi, showPrompt, submitManual, reset }
+  return { ...state, runApi, runLocal, showPrompt, submitManual, reset }
 }

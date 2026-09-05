@@ -43,9 +43,21 @@ export default defineConfig(({ mode }) => {
   // Serverhemligheter (t.ex. ANTHROPIC_API_KEY) ligger i .env utan VITE_-prefix
   // och når därför inte klienten. De behövs däremot i dev-serverns Node-process.
   const env = loadEnv(mode, rootDir, '')
-  for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL', 'ANTHROPIC_EFFORT']) {
+  const serverKeys = [
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_MODEL',
+    'ANTHROPIC_EFFORT',
+    'JOBBIO_LOCAL_MODEL',
+    'JOBBIO_LOCAL_EFFORT',
+    'JOBBIO_LOCAL_TIMEOUT_MS',
+  ]
+  for (const key of serverKeys) {
     if (!process.env[key] && env[key]) process.env[key] = env[key]
   }
+
+  // Grinden för Claude Code-läget: sätts bara här, alltså bara när dev-servern
+  // kör. På Vercel finns ingen CLI att anropa och endpointen svarar 403.
+  process.env.JOBBIO_LOCAL_RUNTIME = '1'
 
   return {
     plugins: [react(), apiRoutes()],

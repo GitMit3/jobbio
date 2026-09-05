@@ -39,3 +39,13 @@ export async function tailorApplication({ cvText, jobAdText }, options) {
   if (!payload?.application) throw new Error('Servern svarade utan ansökan.')
   return payload
 }
+
+/**
+ * Kör analysen genom Claude Code lokalt, med ditt abonnemang i stället för en
+ * API-nyckel. Svaret har samma form som motsvarande /api-endpoint.
+ */
+export async function runWithClaudeCode(feature, input, options) {
+  const payload = await post('/api/claude-code', { feature, ...input }, options)
+  if (!payload) throw new Error('Servern svarade tomt.')
+  return payload
+}
