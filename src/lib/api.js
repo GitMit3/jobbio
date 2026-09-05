@@ -49,3 +49,9 @@ export async function runWithClaudeCode(feature, input, options) {
   if (!payload) throw new Error('Servern svarade tomt.')
   return payload
 }
+
+export async function improveCv({ cvText, targetRole, selections }, options) {
+  const payload = await post('/api/improve-cv', { cvText, targetRole, selections }, options)
+  if (!payload?.improvement) throw new Error('Servern svarade utan omskrivning.')
+  return payload
+}

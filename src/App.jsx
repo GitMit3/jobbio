@@ -7,10 +7,11 @@ import ManualRunner from './components/ManualRunner.jsx'
 import ApplicationInputs from './components/ApplicationInputs.jsx'
 import ApplicationResult from './components/ApplicationResult.jsx'
 import ApplicationsBoard from './components/ApplicationsBoard.jsx'
+import ImprovedCv from './components/ImprovedCv.jsx'
 import AuthPanel from './components/AuthPanel.jsx'
 import { useFeatureRun } from './hooks/useFeatureRun.js'
 import { useAuth } from './hooks/useAuth.js'
-import { analyzeCv, matchJob, runWithClaudeCode, tailorApplication } from './lib/api.js'
+import { analyzeCv, improveCv, matchJob, runWithClaudeCode, tailorApplication } from './lib/api.js'
 import { isSupabaseConfigured, supabase } from './lib/supabase.js'
 import { SAMPLE_CV } from './lib/sampleCv.js'
 import {
@@ -28,7 +29,9 @@ import {
   normalizeMatch,
 } from '../shared/jobMatch.js'
 import { APPLICATION_SYSTEM_PROMPT, applicationSchema, buildApplicationUserPrompt } from '../shared/application.js'
+import { IMPROVE_SYSTEM_PROMPT, buildImproveUserPrompt, improvementSchema } from '../shared/improveCv.js'
 import { buildManualPrompt, parseManualResponse } from '../shared/manualMode.js'
+import { allSelectableIds, selectedTexts } from './lib/suggestions.js'
 
 const MODE_KEY = 'jobbio:mode'
 
@@ -74,6 +77,21 @@ const applicationRunner = {
   parseResult: (text) => {
     const result = parseManualResponse(text, applicationSchema)
     return result.ok ? { ok: true, data: { application: result.data } } : result
+  },
+}
+
+const improveRunner = {
+  apiAction: improveCv,
+  localAction: (input, options) => runWithClaudeCode('improve', input, options),
+  buildPrompt: (input) =>
+    buildManualPrompt({
+      system: IMPROVE_SYSTEM_PROMPT,
+      user: buildImproveUserPrompt(input),
+      schema: improvementSchema,
+    }),
+  parseResult: (text) => {
+    const result = parseManualResponse(text, improvementSchema)
+    return result.ok ? { ok: true, data: { improvement: result.data } } : result
   },
 }
 
@@ -130,6 +148,8 @@ export default function App() {
   const ats = useFeatureRun(atsRunner)
   const match = useFeatureRun(matchRunner)
   const application = useFeatureRun(applicationRunner)
+  const improve = useFeatureRun(improveRunner)
+  const [selected, setSelected] = useState(() => new Set())
   const { user, loading: authLoading } = useAuth()
 
   useEffect(() => {
@@ -146,9 +166,35 @@ export default function App() {
   const isTracker = tab === 'tracker'
 
   const startAts = () => {
+    // En ny analys gör det gamla urvalet och den gamla omskrivningen inaktuella.
+    setSelected(new Set())
+    improve.reset()
     const input = { cvText, targetRole }
     if (isManual) return ats.showPrompt(input)
     return mode === 'local' ? ats.runLocal(input) : ats.runApi(input)
+  }
+
+  const toggleSuggestion = (id) =>
+    setSelected((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const toggleAllSuggestions = () => {
+    const analysis = ats.data?.analysis
+    if (!analysis) return
+    const all = allSelectableIds(analysis)
+    setSelected(selected.size === all.size ? new Set() : all)
+  }
+
+  const startImprove = () => {
+    const analysis = ats.data?.analysis
+    if (!analysis) return
+    const input = { cvText, targetRole, selections: selectedTexts(analysis, selected) }
+    if (isManual) return improve.showPrompt(input)
+    return mode === 'local' ? improve.runLocal(input) : improve.runApi(input)
   }
 
   const startMatch = () => {
@@ -327,7 +373,51 @@ export default function App() {
 
               {runner.status === 'done' &&
                 (tab === 'cv' ? (
-                  <AnalysisResult analysis={ats.data.analysis} meta={ats.data.meta ?? { targetRole }} />
+                  <>
+                    <AnalysisResult
+                      analysis={ats.data.analysis}
+                      meta={ats.data.meta ?? { targetRole }}
+                      selected={selected}
+                      onToggle={toggleSuggestion}
+                      onToggleAll={toggleAllSuggestions}
+                      onImprove={startImprove}
+                      isImproving={improve.status === 'loading'}
+                    />
+
+                    {improve.status === 'loading' && (
+                      <Panel title="Skriver om ditt CV">
+                        <div className="loader" aria-hidden="true">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                        <p>Claude genomför de förslag du valt.</p>
+                      </Panel>
+                    )}
+                    {improve.status === 'error' && (
+                      <Panel title="Omskrivningen misslyckades" tone="bad">
+                        <p>{improve.error}</p>
+                        <button type="button" className="primary" onClick={startImprove}>
+                          Försök igen
+                        </button>
+                      </Panel>
+                    )}
+                    {improve.status === 'prompt' && (
+                      <ManualRunner
+                        prompt={improve.prompt}
+                        error={improve.error}
+                        onSubmit={improve.submitManual}
+                        onCancel={improve.reset}
+                      />
+                    )}
+                    {improve.status === 'done' && (
+                      <ImprovedCv
+                        improvement={improve.data.improvement}
+                        onUseAsCv={(text) => setCvText(text)}
+                        onDiscard={improve.reset}
+                      />
+                    )}
+                  </>
                 ) : tab === 'match' ? (
                   <MatchResult match={match.data.match} />
                 ) : (

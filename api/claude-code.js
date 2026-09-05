@@ -15,6 +15,7 @@ import {
   normalizeMatch,
 } from '../shared/jobMatch.js'
 import { APPLICATION_SYSTEM_PROMPT, applicationSchema, buildApplicationUserPrompt } from '../shared/application.js'
+import { IMPROVE_SYSTEM_PROMPT, buildImproveUserPrompt, improvementSchema } from '../shared/improveCv.js'
 import { buildManualPrompt, parseManualResponse } from '../shared/manualMode.js'
 import { assertLocalRuntime, runClaudeCode } from './_lib/claudeCode.js'
 import { HttpError, readJsonBody, sendJson } from './_lib/http.js'
@@ -61,6 +62,17 @@ const FEATURES = {
       requireAd(jobAdText)
     },
   },
+  improve: {
+    resultKey: 'improvement',
+    schema: improvementSchema,
+    system: IMPROVE_SYSTEM_PROMPT,
+    buildUser: buildImproveUserPrompt,
+    normalize: identity,
+    validate: ({ cvText, selections }) => {
+      requireCv(cvText)
+      if (!selections.length) throw new HttpError(400, 'Inga förbättringar valda.')
+    },
+  },
   application: {
     resultKey: 'application',
     schema: applicationSchema,
@@ -87,6 +99,9 @@ export default async function handler(req, res) {
       cvText: typeof body.cvText === 'string' ? body.cvText.trim() : '',
       jobAdText: typeof body.jobAdText === 'string' ? body.jobAdText.trim() : '',
       targetRole: typeof body.targetRole === 'string' ? body.targetRole.trim().slice(0, 200) : '',
+      selections: Array.isArray(body.selections)
+        ? body.selections.filter((item) => typeof item === 'string' && item.trim()).slice(0, 40)
+        : [],
     }
     feature.validate(input)
 

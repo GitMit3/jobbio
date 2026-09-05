@@ -212,6 +212,27 @@ Modell och tankedjup styrs med `ANTHROPIC_MODEL` och `ANTHROPIC_EFFORT`
 (`low` | `medium` | `high` | `xhigh` | `max`, default `medium`). Höj `ANTHROPIC_EFFORT`
 om analyserna känns ytliga – det kostar mer och tar längre tid.
 
+### Åtgärda förslagen
+
+Varje förslag, åtgärd och saknat nyckelord i analysen har en kryssruta. Välj det
+du vill genomföra och tryck **Åtgärda** – `api/improve-cv.js` skriver om CV:t
+enligt just de valda punkterna och lämnar resten orört.
+
+Resultatet är ett redigerbart CV plus tre listor: **ändringar** (före och efter
+för varje rad som rörts), **platshållare** att fylla i själv, och **gick inte att
+genomföra** – valda förslag som skulle ha krävt påhittade uppgifter, med skäl.
+Det sista är avsiktligt synligt: modellen ska hellre erkänna att den inte kan
+än att gissa fram en merit.
+
+**Använd som mitt CV** ersätter texten i vänsterspalten, så du kan analysera om
+och se hur poängen förändras.
+
+Känd begränsning: modellen sätter fler platshållare än den ombeds. Prompten
+säger max sex och att befintliga uppgifter aldrig ska bytas mot platshållare,
+men i mätning landade den på tio och gjorde ändå om "2021 - nu" till
+"2021-[startmånad]". Välj färre förslag åt gången om det blir för många hål –
+och kom ihåg att texten är redigerbar.
+
 ## Steg 2: Jobbmatchning
 
 Annonsen klistras in eller hämtas från en länk. `api/match-job.js` skickar CV och
