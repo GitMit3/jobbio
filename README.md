@@ -138,6 +138,8 @@ shared/
   atsAnalysis.js       Schema och prompt för ATS-analysen
   jobMatch.js          Schema och prompt för jobbmatchningen
   application.js       Schema, prompt och textrendering för ansökan
+  cvDocument.js        Tolkar CV-text till struktur för mallar och export
+  improveCv.js         Schema och prompt för att genomföra valda förslag
   manualMode.js        Bygger manuell prompt, validerar inklistrat svar
 src/
   App.jsx              Flikar, lägesväxling, delat CV-tillstånd
@@ -155,10 +157,16 @@ src/
     AuthPanel.jsx      Inloggning och kontoskapande
     ManualRunner.jsx   Kopiera prompt, klistra tillbaka svar
     ScoreMeter.jsx     Poängen som randmått, delad av båda vyerna
+    ImprovedCv.jsx     Omskrivet CV, ändringar, platshållare
+    CvExport.jsx       Mallval, förhandsvisning och nedladdning
+    CvPreview.jsx      CV:t satt i vald mall – samma markup på skärm och papper
   lib/
     api.js             fetch-wrapper mot /api
     applications.js    CRUD mot Supabase, statusvärden, felöversättning
     export.js          Kopiering, nedladdning, ordräkning
+    cvTemplates.js     Mallarnas metadata och blockgruppering
+    docxExport.js      Bygger .docx (lazy-laddad)
+    suggestions.js     Vilka förslag som går att kryssa i
     extractText.js     PDF/Word/text → ren text, helt i webbläsaren
     supabase.js        Supabase-klient, null när konfiguration saknas
     sampleCv.js        Exempel-CV för att testa flödet
@@ -232,6 +240,29 @@ säger max sex och att befintliga uppgifter aldrig ska bytas mot platshållare,
 men i mätning landade den på tio och gjorde ändå om "2021 - nu" till
 "2021-[startmånad]". Välj färre förslag åt gången om det blir för många hål –
 och kom ihåg att texten är redigerbar.
+
+### Mallar och export
+
+Det omskrivna CV:t kan laddas ner som **text**, **Word** eller **PDF**, i tre
+mallar: Klassisk, Modern och Kompakt. Valet sparas i webbläsaren.
+
+Mallarna är avsiktligt **enspaltiga, utan tabeller, textrutor eller ikoner**.
+Tvåspaltiga CV ser snyggare ut men läses ofta sönder av ett ATS – kolumnerna
+flätas ihop till obegriplig text – och hela appen går ut på att komma igenom
+just ett ATS. Skillnaden mellan mallarna ligger därför i typografi och rytm:
+serif mot sans, centrerat mot vänsterställt, accentfärg, och radtäthet.
+
+- **PDF** går via webbläsarens utskriftsdialog (*Spara som PDF*). Det ger ett
+  riktigt textlager som går att markera och söka i. Ett PDF renderat som bild
+  hade varit osynligt för ett ATS.
+- **Word** byggs med `docx` och använder Words egna rubrikstilar och riktiga
+  punktlistor – inte manuella bindestreck – eftersom det är den strukturen en
+  parser letar efter. Biblioteket laddas först när du klickar, så huvudbundeln
+  påverkas inte.
+
+`shared/cvDocument.js` tolkar den rena texten till struktur: namn, titel,
+kontaktrader, sektionsrubriker i versaler, poster med datum, och punkter.
+Det som inte känns igen blir vanlig text i stället för att tappas bort.
 
 ## Steg 2: Jobbmatchning
 

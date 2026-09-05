@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { copyText, countWords, downloadText } from '../lib/export.js'
+import CvExport from './CvExport.jsx'
 
 /** Det omskrivna CV:t, med möjlighet att redigera och att ta det i bruk. */
 export default function ImprovedCv({ improvement, onUseAsCv, onDiscard }) {
@@ -65,6 +66,8 @@ export default function ImprovedCv({ improvement, onUseAsCv, onDiscard }) {
           hur poängen förändras.
         </p>
       </section>
+
+      <CvExport text={text} />
 
       {improvement.placeholders.length > 0 && (
         <section className={`panel placeholders ${remaining.length === 0 ? 'done' : ''}`}>
