@@ -16,6 +16,7 @@ import {
 } from '../shared/jobMatch.js'
 import { APPLICATION_SYSTEM_PROMPT, applicationSchema, buildApplicationUserPrompt } from '../shared/application.js'
 import { IMPROVE_SYSTEM_PROMPT, buildImproveUserPrompt, improvementSchema } from '../shared/improveCv.js'
+import { QUESTIONS_SYSTEM_PROMPT, buildQuestionsUserPrompt, questionsSchema } from '../shared/cvQuestions.js'
 import { buildManualPrompt, parseManualResponse } from '../shared/manualMode.js'
 import { assertLocalRuntime, runClaudeCode } from './_lib/claudeCode.js'
 import { HttpError, readJsonBody, sendJson } from './_lib/http.js'
@@ -62,6 +63,17 @@ const FEATURES = {
       requireAd(jobAdText)
     },
   },
+  questions: {
+    resultKey: 'questions',
+    schema: questionsSchema,
+    system: QUESTIONS_SYSTEM_PROMPT,
+    buildUser: buildQuestionsUserPrompt,
+    normalize: (value) => value.questions.slice(0, 8),
+    validate: ({ cvText, selections }) => {
+      requireCv(cvText)
+      if (!selections.length) throw new HttpError(400, 'Inga förbättringar valda.')
+    },
+  },
   improve: {
     resultKey: 'improvement',
     schema: improvementSchema,
@@ -101,6 +113,11 @@ export default async function handler(req, res) {
       targetRole: typeof body.targetRole === 'string' ? body.targetRole.trim().slice(0, 200) : '',
       selections: Array.isArray(body.selections)
         ? body.selections.filter((item) => typeof item === 'string' && item.trim()).slice(0, 40)
+        : [],
+      answers: Array.isArray(body.answers)
+        ? body.answers
+            .filter((item) => item && typeof item.question === 'string' && typeof item.answer === 'string')
+            .slice(0, 8)
         : [],
     }
     feature.validate(input)

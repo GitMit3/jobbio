@@ -1,6 +1,6 @@
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { MAX_CV_CHARS, MIN_CV_CHARS } from '../shared/atsAnalysis.js'
-import { IMPROVE_SYSTEM_PROMPT, buildImproveUserPrompt, improvementSchema } from '../shared/improveCv.js'
+import { QUESTIONS_SYSTEM_PROMPT, buildQuestionsUserPrompt, questionsSchema } from '../shared/cvQuestions.js'
 import { EFFORT, MODEL, getClient, toHttpError } from './_lib/claude.js'
 import { HttpError, readJsonBody, sendJson } from './_lib/http.js'
 
@@ -21,38 +21,24 @@ export default async function handler(req, res) {
     }
     if (!selections.length) throw new HttpError(400, 'Inga förbättringar valda.')
 
-    const answers = Array.isArray(body.answers)
-      ? body.answers
-          .filter((item) => item && typeof item.question === 'string' && typeof item.answer === 'string')
-          .slice(0, 8)
-      : []
-
     const message = await getClient().messages.parse({
       model: MODEL,
-      max_tokens: 8000,
+      max_tokens: 4000,
       thinking: { type: 'adaptive' },
-      output_config: { effort: EFFORT, format: zodOutputFormat(improvementSchema) },
-      system: IMPROVE_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildImproveUserPrompt({ cvText, targetRole, selections, answers }) }],
+      output_config: { effort: EFFORT, format: zodOutputFormat(questionsSchema) },
+      system: QUESTIONS_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: buildQuestionsUserPrompt({ cvText, targetRole, selections }) }],
     })
 
-    if (message.stop_reason === 'refusal') {
-      throw new HttpError(422, 'Modellen kunde inte skriva om det här CV:t.')
-    }
-    if (message.stop_reason === 'max_tokens') {
-      throw new HttpError(502, 'Omskrivningen blev avklippt. Välj färre förbättringar åt gången.')
-    }
+    if (message.stop_reason === 'refusal') throw new HttpError(422, 'Modellen kunde inte förbereda frågorna.')
     if (!message.parsed_output) {
       throw new HttpError(502, 'Svaret kom tillbaka i ett format vi inte kunde tolka. Försök igen.')
     }
 
-    sendJson(res, 200, {
-      improvement: message.parsed_output,
-      meta: { model: message.model, improvedAt: new Date().toISOString(), applied: selections.length },
-    })
+    sendJson(res, 200, { questions: message.parsed_output.questions.slice(0, 8), meta: { model: message.model } })
   } catch (error) {
     const httpError = toHttpError(error)
-    if (httpError.status >= 500) console.error('[improve-cv]', error)
+    if (httpError.status >= 500) console.error('[ask-questions]', error)
     sendJson(res, httpError.status, { error: httpError.message })
   }
 }

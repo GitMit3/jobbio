@@ -235,11 +235,25 @@ Det sista är avsiktligt synligt: modellen ska hellre erkänna att den inte kan
 **Använd som mitt CV** ersätter texten i vänsterspalten, så du kan analysera om
 och se hur poängen förändras.
 
-Känd begränsning: modellen sätter fler platshållare än den ombeds. Prompten
-säger max sex och att befintliga uppgifter aldrig ska bytas mot platshållare,
-men i mätning landade den på tio och gjorde ändå om "2021 - nu" till
-"2021-[startmånad]". Välj färre förslag åt gången om det blir för många hål –
-och kom ihåg att texten är redigerbar.
+#### Kompletterande frågor i stället för platshållare
+
+Innan omskrivningen körs en **frågeomgång**: modellen läser CV:t och de valda
+förslagen och listar de uppgifter den saknar. Du svarar med några ord –
+*"ca 30 per vecka"* – och svaren används som fakta i texten.
+
+Det ersatte den tidigare platshållarlösningen, som lämnade hål i CV:t och som
+modellen dessutom överanvände: prompten sa max sex, mätningen gav tio, och den
+gjorde om "2021 - nu" till "2021-[startmånad]". Efter frågeomgången blev
+mätningen **noll platshållare**.
+
+Frågor du hoppar över leder till att förslaget utelämnas och redovisas under
+*Gick inte att genomföra* – aldrig till en gissning. Med fem av åtta frågor
+obesvarade utelämnades 19 förslag i mätningen, vilket är avsikten.
+
+Kvarstående problem: modellen slår fortfarande ihop sektionen *Praktikplatser*
+med *Arbetslivserfarenhet*, trots en uttrycklig regel om att inte röra rubriker
+som säger något om erfarenhetens art. Jobbtitlarna lämnas numera orörda, vilket
+de inte gjorde tidigare.
 
 ### Mallar och export
 

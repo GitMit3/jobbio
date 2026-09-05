@@ -8,10 +8,11 @@ import ApplicationInputs from './components/ApplicationInputs.jsx'
 import ApplicationResult from './components/ApplicationResult.jsx'
 import ApplicationsBoard from './components/ApplicationsBoard.jsx'
 import ImprovedCv from './components/ImprovedCv.jsx'
+import ImproveQuestions from './components/ImproveQuestions.jsx'
 import AuthPanel from './components/AuthPanel.jsx'
 import { useFeatureRun } from './hooks/useFeatureRun.js'
 import { useAuth } from './hooks/useAuth.js'
-import { analyzeCv, improveCv, matchJob, runWithClaudeCode, tailorApplication } from './lib/api.js'
+import { analyzeCv, askQuestions, improveCv, matchJob, runWithClaudeCode, tailorApplication } from './lib/api.js'
 import { isSupabaseConfigured, supabase } from './lib/supabase.js'
 import { SAMPLE_CV } from './lib/sampleCv.js'
 import {
@@ -30,6 +31,12 @@ import {
 } from '../shared/jobMatch.js'
 import { APPLICATION_SYSTEM_PROMPT, applicationSchema, buildApplicationUserPrompt } from '../shared/application.js'
 import { IMPROVE_SYSTEM_PROMPT, buildImproveUserPrompt, improvementSchema } from '../shared/improveCv.js'
+import {
+  QUESTIONS_SYSTEM_PROMPT,
+  buildQuestionsUserPrompt,
+  formatAnswers,
+  questionsSchema,
+} from '../shared/cvQuestions.js'
 import { buildManualPrompt, parseManualResponse } from '../shared/manualMode.js'
 import { allSelectableIds, selectedTexts } from './lib/suggestions.js'
 
@@ -95,6 +102,21 @@ const improveRunner = {
   },
 }
 
+const questionsRunner = {
+  apiAction: askQuestions,
+  localAction: async (input, options) => (await runWithClaudeCode('questions', input, options)).questions,
+  buildPrompt: (input) =>
+    buildManualPrompt({
+      system: QUESTIONS_SYSTEM_PROMPT,
+      user: buildQuestionsUserPrompt(input),
+      schema: questionsSchema,
+    }),
+  parseResult: (text) => {
+    const result = parseManualResponse(text, questionsSchema)
+    return result.ok ? { ok: true, data: result.data.questions.slice(0, 8) } : result
+  },
+}
+
 const MODES = [
   { id: 'manual', label: 'Manuellt', hint: 'Kopiera prompten och kör den i Claude.ai – ingen nyckel, ingen kostnad' },
   { id: 'local', label: 'Claude Code', hint: 'Kör automatiskt via din lokala Claude Code och ditt abonnemang' },
@@ -149,6 +171,7 @@ export default function App() {
   const match = useFeatureRun(matchRunner)
   const application = useFeatureRun(applicationRunner)
   const improve = useFeatureRun(improveRunner)
+  const questions = useFeatureRun(questionsRunner)
   const [selected, setSelected] = useState(() => new Set())
   const { user, loading: authLoading } = useAuth()
 
@@ -168,6 +191,7 @@ export default function App() {
   const startAts = () => {
     // En ny analys gör det gamla urvalet och den gamla omskrivningen inaktuella.
     setSelected(new Set())
+    questions.reset()
     improve.reset()
     const input = { cvText, targetRole }
     if (isManual) return ats.showPrompt(input)
@@ -189,12 +213,27 @@ export default function App() {
     setSelected(selected.size === all.size ? new Set() : all)
   }
 
-  const startImprove = () => {
+  const run = (runner, input) => {
+    if (isManual) return runner.showPrompt(input)
+    return mode === 'local' ? runner.runLocal(input) : runner.runApi(input)
+  }
+
+  const selectionInput = () => {
     const analysis = ats.data?.analysis
-    if (!analysis) return
-    const input = { cvText, targetRole, selections: selectedTexts(analysis, selected) }
-    if (isManual) return improve.showPrompt(input)
-    return mode === 'local' ? improve.runLocal(input) : improve.runApi(input)
+    return analysis ? { cvText, targetRole, selections: selectedTexts(analysis, selected) } : null
+  }
+
+  // Steg 1: ta reda på vad som saknas innan CV:t skrivs om.
+  const startQuestions = () => {
+    const input = selectionInput()
+    if (input) run(questions, input)
+  }
+
+  // Steg 2: skriv om, med användarens svar som fakta.
+  const startImprove = (answers = {}) => {
+    const input = selectionInput()
+    if (!input) return
+    run(improve, { ...input, answers: formatAnswers(questions.data ?? [], answers) })
   }
 
   const startMatch = () => {
@@ -380,9 +419,53 @@ export default function App() {
                       selected={selected}
                       onToggle={toggleSuggestion}
                       onToggleAll={toggleAllSuggestions}
-                      onImprove={startImprove}
-                      isImproving={improve.status === 'loading'}
+                      onImprove={startQuestions}
+                      isImproving={questions.status === 'loading' || improve.status === 'loading'}
                     />
+
+                    {questions.status === 'loading' && (
+                      <Panel title="Ser efter vad som saknas">
+                        <div className="loader" aria-hidden="true">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                        <p>Claude läser CV:t och de förslag du valt.</p>
+                      </Panel>
+                    )}
+                    {questions.status === 'error' && (
+                      <Panel title="Kunde inte förbereda frågorna" tone="bad">
+                        <p>{questions.error}</p>
+                        <button type="button" className="primary" onClick={startQuestions}>
+                          Försök igen
+                        </button>
+                      </Panel>
+                    )}
+                    {questions.status === 'prompt' && (
+                      <ManualRunner
+                        prompt={questions.prompt}
+                        error={questions.error}
+                        onSubmit={questions.submitManual}
+                        onCancel={questions.reset}
+                      />
+                    )}
+                    {questions.status === 'done' &&
+                      improve.status === 'idle' &&
+                      (questions.data.length > 0 ? (
+                        <ImproveQuestions
+                          questions={questions.data}
+                          onSubmit={startImprove}
+                          onSkip={() => startImprove({})}
+                          isWriting={false}
+                        />
+                      ) : (
+                        <Panel title="Inget saknades">
+                          <p>Allt som behövs för de valda förslagen finns redan i CV:t.</p>
+                          <button type="button" className="primary" onClick={() => startImprove({})}>
+                            Skriv om CV:t
+                          </button>
+                        </Panel>
+                      ))}
 
                     {improve.status === 'loading' && (
                       <Panel title="Skriver om ditt CV">
@@ -397,7 +480,7 @@ export default function App() {
                     {improve.status === 'error' && (
                       <Panel title="Omskrivningen misslyckades" tone="bad">
                         <p>{improve.error}</p>
-                        <button type="button" className="primary" onClick={startImprove}>
+                        <button type="button" className="primary" onClick={() => startImprove({})}>
                           Försök igen
                         </button>
                       </Panel>
@@ -414,7 +497,10 @@ export default function App() {
                       <ImprovedCv
                         improvement={improve.data.improvement}
                         onUseAsCv={(text) => setCvText(text)}
-                        onDiscard={improve.reset}
+                        onDiscard={() => {
+                          improve.reset()
+                          questions.reset()
+                        }}
                       />
                     )}
                   </>

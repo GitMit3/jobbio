@@ -50,8 +50,14 @@ export async function runWithClaudeCode(feature, input, options) {
   return payload
 }
 
-export async function improveCv({ cvText, targetRole, selections }, options) {
-  const payload = await post('/api/improve-cv', { cvText, targetRole, selections }, options)
+export async function improveCv({ cvText, targetRole, selections, answers }, options) {
+  const payload = await post('/api/improve-cv', { cvText, targetRole, selections, answers }, options)
   if (!payload?.improvement) throw new Error('Servern svarade utan omskrivning.')
   return payload
+}
+
+export async function askQuestions({ cvText, targetRole, selections }, options) {
+  const payload = await post('/api/ask-questions', { cvText, targetRole, selections }, options)
+  if (!payload?.questions) throw new Error('Servern svarade utan frågor.')
+  return payload.questions
 }
